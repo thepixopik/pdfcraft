@@ -10,9 +10,14 @@ filehash = true
 addresses = ["127.0.0.1"]
 port = 8766
 
-# Trunk leaves the OCR worker's files unhashed and unnamed in index.html: hash them and name the
-# worker for the page (xtask/src/web.rs).
+# 1) Hash OCR worker files and register <meta name="pdfcraft-ocr-worker"> in index.html
 [[hooks]]
 stage = "post_build"
 command = "cargo"
 command_arguments = ["xtask", "web-worker-link"]
+
+# 2) Strip debug sections from all .wasm files, and gzip+chunk main pdfcraft-web .wasm with progress bar
+[[hooks]]
+stage = "post_build"
+command = "python3"
+command_arguments = ["pack_wasm.py"]

@@ -1,16 +1,15 @@
-//! Where PdfCraft and the ArtCraft community live on the web. One table, so the Help menu, the
-//! About dialog, the home screen, the CLI and the README agree.
+//! Where The AllCraft PDF and Studio live on the web.
 
 use icu_properties::props::Script;
 use std::path::{Path, PathBuf};
 
-/// The app's name in ArtCraft URLs (`getartcraft.com/apps/{APP}`, `github.com/storytold/{APP}`).
+/// The app's short name.
 pub const APP: &str = "pdfcraft";
 
-pub const DISCORD: &str = "https://discord.gg/artcraft";
-pub const WEBSITE: &str = "https://getartcraft.com";
-pub const APP_PAGE: &str = "https://getartcraft.com/apps/pdfcraft";
-pub const GITHUB: &str = "https://github.com/storytold/pdfcraft";
+pub const DISCORD: &str = "https://github.com/thepixopik/pdfcraft/discussions";
+pub const WEBSITE: &str = "https://the-allcraft.pages.dev";
+pub const APP_PAGE: &str = "https://the-allcraft.pages.dev/pdf/";
+pub const GITHUB: &str = "https://github.com/thepixopik/pdfcraft";
 
 /// A link and the registry command that opens it.
 #[derive(Clone, Copy, Debug)]
@@ -22,46 +21,29 @@ pub struct Link {
     pub icon: &'static str,
 }
 
-/// In the order they are shown. Discord comes first: it is where people get help fastest.
+/// In the order they are shown on Home, Help, and About.
 pub const LINKS: &[Link] = &[
-    Link { command: "help.discord", label: "Join the ArtCraft Discord", url: DISCORD, icon: "messages-square" },
-    Link { command: "help.app_page", label: "PdfCraft web page", url: APP_PAGE, icon: "globe" },
-    Link { command: "help.github", label: "PdfCraft on GitHub", url: GITHUB, icon: "code-xml" },
-    Link { command: "help.website", label: "ArtCraft website", url: WEBSITE, icon: "external-link" },
+    Link { command: "help.discord", label: "AllCraft Community", url: DISCORD, icon: "messages-square" },
+    Link { command: "help.app_page", label: "The AllCraft PDF Web", url: APP_PAGE, icon: "globe" },
+    Link { command: "help.github", label: "PDFCraft on GitHub", url: GITHUB, icon: "code-xml" },
+    Link { command: "help.website", label: "The AllCraft Studio", url: WEBSITE, icon: "external-link" },
 ];
 
 pub fn for_command(id: &str) -> Option<&'static Link> {
     LINKS.iter().find(|l| l.command == id)
 }
 
-/// The kinds of address a document may ask PdfCraft to open: web pages and email. Anything
-/// else (`file:`, `javascript:`, `data:`, `smb:`, app handlers such as `ms-settings:`) is refused,
-/// because the operating system would hand it to whichever program claims it (#90, #91).
 pub const DOCUMENT_SCHEMES: &[&str] = &["https", "http", "mailto"];
-
-/// The longest address a document may ask to open. A longer one is refused rather than shown
-/// cut short in the confirmation, where the hidden tail could carry the document's form data.
 pub const MAX_DOCUMENT_URL: usize = 2048;
 
-/// Why an address that came from a document was refused.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum BlockedLink {
     Empty,
-    /// Longer than [`MAX_DOCUMENT_URL`] characters.
     TooLong(usize),
-    /// Control, zero-width or bidirectional-override characters, or whitespace other than a plain
-    /// space, which can hide part of the address or make it read as something else.
     Hidden,
-    /// No scheme, or a web address without a host or with a space before its path.
     Malformed,
-    /// A scheme other than [`DOCUMENT_SCHEMES`] (lowercased).
     Scheme(String),
-    /// An email address asking the email app to attach a local file (`attach=`, `attachment=`)
-    /// or read one into the message (`insert=`).
     MailFile,
-    /// An email address containing text that some email tools decode before reading the address,
-    /// so it could spell `attach`: an RFC 2047 encoded word (`=?utf-8?q?…?=`) or a backslash
-    /// escape (`\0141`, `\x61`).
     MailEncodedWord,
 }
 
@@ -79,17 +61,12 @@ impl std::fmt::Display for BlockedLink {
     }
 }
 
-/// Characters that can hide or disguise part of an address in the confirmation dialog. A plain
-/// space is visible and turns up in real links (`mailto:…?subject=Order form`), so it is allowed.
 fn hides_text(c: char) -> bool {
     (c.is_whitespace() && c != ' ')
         || c.is_control()
         || matches!(c, '\u{200B}'..='\u{200F}' | '\u{202A}'..='\u{202E}' | '\u{2060}'..='\u{2064}' | '\u{2066}'..='\u{2069}' | '\u{FEFF}')
 }
 
-/// Check an address that came from a document (a link, a button's URI action or a script's
-/// `app.launchURL`) before PdfCraft offers to open it. Returns the address trimmed of
-/// surrounding whitespace. PdfCraft's own links (Help, About, updates) don't come through here.
 pub fn document_url(raw: &str) -> Result<String, BlockedLink> {
     let url = raw.trim();
     if url.is_empty() {
@@ -103,7 +80,6 @@ pub fn document_url(raw: &str) -> Result<String, BlockedLink> {
         return Err(BlockedLink::Hidden);
     }
     let (scheme, rest) = url.split_once(':').ok_or(BlockedLink::Malformed)?;
-    // RFC 3986: ALPHA *( ALPHA / DIGIT / "+" / "-" / "." ).
     let well_formed = scheme.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
         && scheme.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.'));
     if !well_formed {
@@ -117,9 +93,6 @@ pub fn document_url(raw: &str) -> Result<String, BlockedLink> {
         "mailto" => !rest.is_empty(),
         _ => authority(url).is_some_and(|a| !a.contains(' ')) && display_host(url).is_some(),
     };
-    // The desktop app opens addresses through the webbrowser crate, which treats one the WHATWG URL
-    // parser rejects as a local file path and opens that instead (`mailto://a^b/` would become
-    // `file:///…/mailto:/a^b/`). So only an address the parser accepts, as the same scheme, goes on.
     if !complete || !url::Url::parse(url).is_ok_and(|u| u.scheme() == scheme) {
         return Err(BlockedLink::Malformed);
     }
@@ -129,7 +102,6 @@ pub fn document_url(raw: &str) -> Result<String, BlockedLink> {
     Ok(url.to_string())
 }
 
-/// Maximum decoded GoToR file-spec size retained by inspection and accepted by the resolver.
 pub const MAX_REMOTE_DOCUMENT_PATH_BYTES: usize = 4096;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -137,16 +109,11 @@ pub enum RemoteDocumentPathError {
     Empty,
     TooLong,
     Hidden,
-    /// A URL, a network or device path, or a path that climbs above its root.
     NotLocal(craft_docpath::Refused),
     MissingSourcePath,
-    /// The target doesn't end in `.pdf`.
     NotPdf,
-    /// The target is a directory, device, FIFO or socket rather than a regular file.
     NotAFile,
-    /// The target is larger than [`MAX_REMOTE_DOCUMENT_BYTES`].
     TooLarge,
-    /// The target couldn't be read.
     Read(String),
 }
 
@@ -166,17 +133,10 @@ impl std::fmt::Display for RemoteDocumentPathError {
     }
 }
 
-/// Whether the original GoToR file specification is absolute on this platform.
-/// Check this before resolving relative paths against the source document. This does no I/O;
-/// the resolver must still reject URL/network paths and malformed file specifications.
 pub fn remote_document_path_is_absolute(raw: &str) -> bool {
     Path::new(raw).is_absolute()
 }
 
-/// Resolve a PDF remote-Go-To file specification to a local path without opening it.
-/// Relative paths are based on the source document, which should be an absolute path; an
-/// in-memory source has no fallback to CWD. URLs (including `file:`), network and device paths are
-/// refused ([`craft_docpath::resolve_absolute`]).
 pub fn resolve_remote_document_path(source: Option<&Path>, raw: &str) -> Result<PathBuf, RemoteDocumentPathError> {
     if raw.is_empty() || raw.trim().is_empty() {
         return Err(RemoteDocumentPathError::Empty);
@@ -187,8 +147,6 @@ pub fn resolve_remote_document_path(source: Option<&Path>, raw: &str) -> Result<
     if raw.chars().any(hides_text) {
         return Err(RemoteDocumentPathError::Hidden);
     }
-    // A GoToR file specification is a path, not a URL: any scheme of two or more characters is
-    // refused (one letter is a drive), `file:` and names such as `custom:target.pdf` included.
     if let Some((scheme, _)) = raw.split_once(':') {
         let is_scheme = scheme.len() > 1
             && scheme.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
@@ -198,8 +156,6 @@ pub fn resolve_remote_document_path(source: Option<&Path>, raw: &str) -> Result<
         }
     }
     craft_docpath::resolve_absolute(raw, source).map_err(|r| match r {
-        // A path that resolves but not to an absolute one needed a source with an absolute path. With
-        // such a source, it is a path this platform cannot open (`C:\x.pdf` on Unix).
         craft_docpath::Refused::Invalid if !source.is_some_and(Path::is_absolute) && craft_docpath::resolve(raw, source).is_ok() => {
             RemoteDocumentPathError::MissingSourcePath
         }
@@ -207,13 +163,8 @@ pub fn resolve_remote_document_path(source: Option<&Path>, raw: &str) -> Result<
     })
 }
 
-/// Largest linked PDF a GoToR link may open (1 GiB, the largest size the large-file work measures).
 pub const MAX_REMOTE_DOCUMENT_BYTES: u64 = 1 << 30;
 
-/// Read the PDF a GoToR link resolved to. The path comes from an untrusted document, so only a
-/// regular `.pdf` file of at most [`MAX_REMOTE_DOCUMENT_BYTES`] is read: a directory, a device such
-/// as `/dev/zero` or a FIFO is refused before it is opened, and a file that grows past the cap
-/// while it is read is refused too.
 pub fn read_remote_document(path: &Path) -> Result<Vec<u8>, RemoteDocumentPathError> {
     use std::io::Read;
     let is_pdf = path.extension().is_some_and(|e| e.eq_ignore_ascii_case("pdf"));
@@ -227,14 +178,11 @@ pub fn read_remote_document(path: &Path) -> Result<Vec<u8>, RemoteDocumentPathEr
     if meta.len() > MAX_REMOTE_DOCUMENT_BYTES {
         return Err(RemoteDocumentPathError::TooLarge);
     }
-    // The path can change between that check and the open (a file replaced by a FIFO): opened
-    // without blocking, and checked again on the handle, which is what is read.
     let mut options = std::fs::OpenOptions::new();
     options.read(true);
     #[cfg(unix)]
     {
         use std::os::unix::fs::OpenOptionsExt as _;
-        // O_NONBLOCK: Linux 0o4000, macOS and the BSDs 0x4.
         options.custom_flags(if cfg!(target_os = "linux") { 0o4000 } else { 0x4 });
     }
     let file = options.open(path).map_err(|e| RemoteDocumentPathError::Read(e.to_string()))?;
@@ -242,7 +190,6 @@ pub fn read_remote_document(path: &Path) -> Result<Vec<u8>, RemoteDocumentPathEr
     if !meta.is_file() {
         return Err(RemoteDocumentPathError::NotAFile);
     }
-    // the opened handle's own length: a file replaced after the path check must not size the buffer
     if meta.len() > MAX_REMOTE_DOCUMENT_BYTES {
         return Err(RemoteDocumentPathError::TooLarge);
     }
@@ -254,29 +201,9 @@ pub fn read_remote_document(path: &Path) -> Result<Vec<u8>, RemoteDocumentPathEr
     Ok(bytes)
 }
 
-/// Email-address parameters that make an email app read a file from the user's computer: Evolution,
-/// KMail and Claws Mail attach the file named by `attach` (Evolution and KMail also by
-/// `attachment`), and Claws Mail reads an `insert` file into the message body. Names are matched as
-/// prefixes, so `attachments` is refused too.
 const MAIL_FILE_PARAMETERS: &[&str] = &["attach", "insert"];
-
-/// How many layers of percent-encoding are looked through. Email apps decode once at most.
 const MAIL_DECODE_LAYERS: usize = 8;
 
-/// Refuse an email address (what follows `mailto:`) that asks for a local file. A document can't
-/// need this, and a drafted message carrying the user's files is one click from being sent.
-///
-/// Email apps disagree on how they read the address, so this doesn't try to parse it the way any
-/// one of them does. Every email app reads a parameter as `name=value`, so it refuses any word
-/// that starts with one of [`MAIL_FILE_PARAMETERS`] (in any case) and is followed by `=`, wherever
-/// it stands: after `?`, `&`, `#` or `;` (KMail looks for the first `?` anywhere and reads `&#38;`
-/// as `&`), with no `?` at all (xdg-email reads `mailto:a@example.org&attach=…` as a parameter) or
-/// after a comma (xdg-email copies the subject into Thunderbird's comma-separated `-compose`
-/// argument). The check is repeated after each layer of percent-decoding (KMail decodes names, so
-/// `%61ttach` is `attach`). A word without `=` (`Please attach the invoice`) is fine.
-///
-/// The address is refused, not stripped of the parameter: PdfCraft never rewrites what a document
-/// asks to open, and a stripped address could still be read differently by some email app.
 fn check_mail_parameters(rest: &str) -> Result<(), BlockedLink> {
     let mut text = rest.to_string();
     for _ in 0..MAIL_DECODE_LAYERS {
@@ -290,14 +217,10 @@ fn check_mail_parameters(rest: &str) -> Result<(), BlockedLink> {
     check_mail_layer(&text)
 }
 
-/// One layer of [`check_mail_parameters`].
 fn check_mail_layer(text: &str) -> Result<(), BlockedLink> {
-    // KMail decodes RFC 2047 encoded words (`=?utf-8?q?attach?=`) across the whole address before
-    // reading it, and its decoder is lenient, so any `=?` followed later by `?=` is refused.
     if text.find("=?").is_some_and(|i| text.get(i + 2..).is_some_and(|after| after.contains("?="))) {
         return Err(BlockedLink::MailEncodedWord);
     }
-    // xdg-email passes the address through `echo`, which turns `\0141` (octal) or `\x61` into `a`.
     if text.split('\\').skip(1).any(|after| after.starts_with(|c: char| c.is_ascii_digit() || matches!(c, 'x' | 'X'))) {
         return Err(BlockedLink::MailEncodedWord);
     }
@@ -321,7 +244,6 @@ fn check_mail_layer(text: &str) -> Result<(), BlockedLink> {
     Ok(())
 }
 
-/// Decode `%XX` escapes. A `%` not followed by two hex digits is kept as it is.
 fn percent_decode(s: &[u8]) -> Vec<u8> {
     let hex = |b: Option<&u8>| b.and_then(|b| char::from(*b).to_digit(16)).and_then(|d| u8::try_from(d).ok());
     let mut out = Vec::with_capacity(s.len());
@@ -340,10 +262,6 @@ fn percent_decode(s: &[u8]) -> Vec<u8> {
     out
 }
 
-/// The authority of a web address: what follows `//`, up to the first `/`, `\`, `?` or `#`.
-/// Browsers read `\` as `/` in web addresses (the WHATWG URL standard), so it ends the authority
-/// too; otherwise `https://other.example\@trusted.example/` would seem to go to
-/// `trusted.example`. `None` for a non-web address or one without `//`.
 fn authority(url: &str) -> Option<&str> {
     let (scheme, rest) = url.split_once(':')?;
     if !(scheme.eq_ignore_ascii_case("https") || scheme.eq_ignore_ascii_case("http")) {
@@ -352,14 +270,10 @@ fn authority(url: &str) -> Option<&str> {
     rest.strip_prefix("//")?.split(['/', '\\', '?', '#']).next()
 }
 
-/// The host a web address really goes to, without any `user:password@` prefix, so
-/// `https://trusted.example@other.example/` reports `other.example`. `None` for a non-web
-/// address or one without a host.
 pub fn host(url: &str) -> Option<&str> {
     let authority = authority(url)?;
     let host_port = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
     let host = if host_port.starts_with('[') {
-        // An IPv6 literal keeps its brackets; only a port after them is dropped.
         host_port.find(']').and_then(|i| host_port.get(..=i)).unwrap_or_default()
     } else {
         host_port.split(':').next().unwrap_or_default()
@@ -367,27 +281,13 @@ pub fn host(url: &str) -> Option<&str> {
     (!host.is_empty()).then_some(host)
 }
 
-/// How to show a web address's host so that a lookalike can't pass for a familiar site.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct HostDisplay {
-    /// The host the browser connects to: lowercase ASCII, with international labels in punycode
-    /// (`xn--…`) and numeric addresses in their usual form (`192.168.1.1`, `[::1]`). Show this one,
-    /// not the document's spelling.
     pub ascii: String,
-    /// The host has a label in another alphabet (`xn--…`), whose letters can look like familiar
-    /// ones.
     pub international: bool,
-    /// A label mixes writing systems, such as the Cyrillic `а` in `pаypal.com`: a common way to
-    /// imitate another site's name.
     pub mixed_scripts: bool,
 }
 
-/// The host of a web address as the browser will see it (see [`HostDisplay`]). On the desktop the
-/// address is handed to the operating system as the `url` crate (the WHATWG URL standard)
-/// serialises it, and in the browser build the browser parses it by the same standard, so this
-/// reads the host with that crate: percent-decoded, IDNA-mapped (case, fullwidth letters, `。`) and
-/// with numeric hosts such as `0x7f.1` resolved. `None` for a non-web address, one without a host
-/// (see [`host`]), or one the browser would reject.
 pub fn display_host(url: &str) -> Option<HostDisplay> {
     host(url)?;
     let parsed = url::Url::parse(url).ok()?;
@@ -404,9 +304,6 @@ pub fn display_host(url: &str) -> Option<HostDisplay> {
     Some(HostDisplay { ascii, international: true, mixed_scripts })
 }
 
-/// A writing system for comparing the characters of a label. Han characters are written with
-/// Japanese, Korean and Chinese ones, so those three combinations count as one system each
-/// (Unicode TR 39's augmented script sets).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Writing {
     Script(Script),
@@ -415,8 +312,6 @@ enum Writing {
     Chinese,
 }
 
-/// The writing systems a character belongs to, or `None` for one shared by all (digits, `-`,
-/// combining marks).
 fn writing_systems(c: char) -> Option<Vec<Writing>> {
     let scripts = icu_properties::script::ScriptWithExtensions::new().get_script_extensions_val(c);
     let mut out = Vec::new();
@@ -436,8 +331,6 @@ fn writing_systems(c: char) -> Option<Vec<Writing>> {
     Some(out)
 }
 
-/// The writing systems every character of `label` belongs to (Unicode TR 39's resolved script
-/// set), skipping characters that `skip` picks. `None` when no character narrows it down.
 fn shared_writing(label: &str, skip: impl Fn(&[Writing]) -> bool) -> Option<Vec<Writing>> {
     let mut shared: Option<Vec<Writing>> = None;
     for systems in label.chars().filter_map(writing_systems) {
@@ -452,8 +345,6 @@ fn shared_writing(label: &str, skip: impl Fn(&[Writing]) -> bool) -> Option<Vec<
     shared
 }
 
-/// Whether a label mixes writing systems. Latin alongside Japanese, Korean or Chinese is allowed, as
-/// in Unicode TR 39's "highly restrictive" level (`ソニーstore`).
 fn mixes_scripts(label: &str) -> bool {
     if shared_writing(label, |_| false).is_none_or(|s| !s.is_empty()) {
         return false;

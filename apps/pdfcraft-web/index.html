@@ -3,17 +3,29 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>PdfCraft</title>
-    <link data-trunk rel="rust" data-wasm-opt="z" />
+    <title>The AllCraft PDF</title>
+    <link data-trunk rel="rust" data-wasm-opt="0" />
     <!-- Recognises text off the page's thread (crates/ui-egui/src/workflows/ocr_web.rs). -->
-    <link data-trunk rel="rust" href="../pdfcraft-ocr-worker/Cargo.toml" data-type="worker" data-loader-shim data-bindgen-target="web" data-wasm-opt="3" />
+    <link data-trunk rel="rust" href="../pdfcraft-ocr-worker/Cargo.toml" data-type="worker" data-loader-shim data-bindgen-target="web" data-wasm-opt="0" />
     <style>
-      html, body { margin: 0; height: 100%; overflow: hidden; background: #f1f1f3; }
-      canvas { width: 100%; height: 100%; display: block; outline: none; }
-      @media (prefers-color-scheme: dark) { html, body { background: #19191c; } }
+      html, body { margin: 0; height: 100%; overflow: hidden; background: #19191c; }
+      canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
+      #pdfcraft_loading {
+        position: absolute; inset: 0; display: flex; flex-direction: column;
+        align-items: center; justify-content: center; padding: 0 16px;
+        text-align: center; color: #c9c9ce; background: #19191c;
+        font: 14px system-ui, -apple-system, sans-serif; pointer-events: none; z-index: 5;
+      }
     </style>
   </head>
   <body>
     <canvas id="pdfcraft"></canvas>
+    <div id="pdfcraft_loading">
+      <div style="margin-bottom:12px;font-size:15px;font-weight:600;color:#ececef">Loading The AllCraft PDF&hellip;</div>
+      <div style="width:240px;height:5px;background:#323238;border-radius:999px;overflow:hidden">
+        <div id="pdf_load_bar" style="width:2%;height:100%;background:#10b981;border-radius:999px;transition:width 0.12s ease-out"></div>
+      </div>
+      <div id="pdf_load_pct" style="margin-top:8px;font-size:12px;color:#9ca3af;font-variant-numeric:tabular-nums">Starting&hellip;</div>
+    </div>
   </body>
 </html>
